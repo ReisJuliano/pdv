@@ -129,17 +129,17 @@ if ($top5ids) {
     [$groupExpr, $labelExpr] = $groupFormats[$agrupar === 'day' ? 'day' : ($agrupar === 'week' ? 'week' : 'month')];
 
     $sqlSeries = "
-        SELECT
-            product_id,
-            product_name,
-            $groupExpr  AS periodo_key,
-            $labelExpr  AS periodo_label,
-            SUM(qty)    AS qty
-        FROM ($sqlUnion) base
-        WHERE product_id IN ($inIds)
-        GROUP BY product_id, product_name, $groupExpr
-        ORDER BY periodo_key
-    ";
+    SELECT
+        product_id,
+        ANY_VALUE(product_name) AS product_name,
+        $groupExpr              AS periodo_key,
+        ANY_VALUE($labelExpr)   AS periodo_label,
+        SUM(qty)                AS qty
+    FROM ($sqlUnion) base
+    WHERE product_id IN ($inIds)
+    GROUP BY product_id, $groupExpr
+    ORDER BY periodo_key
+";
     $rows = $db->query($sqlSeries)->fetchAll();
 
     // Estrutura: { product_id: { name, data: { periodo: qty } } }
