@@ -4,7 +4,7 @@ define('DB_PORT', 3308);
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('DB_NAME', 'mercearia_tatu');
-define('APP_NAME', 'Mercearia do Tatu');
+define('APP_NAME', 'Nimvo');
 define('APP_VERSION', '1.0.0');
 
 session_start();

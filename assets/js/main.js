@@ -1,5 +1,5 @@
 // ============================================
-// Mercearia do Tatu - Main JavaScript
+// Nimvo - Main JavaScript
 // ============================================
 
 // Clock
@@ -14,9 +14,31 @@ setInterval(updateClock, 1000);
 updateClock();
 
 // Sidebar toggle
-const sidebar = document.getElementById('sidebar');
-document.getElementById('sidebarToggle')?.addEventListener('click', () => { sidebar.classList.toggle('collapsed'); });
-document.getElementById('topbarToggle')?.addEventListener('click', () => { sidebar.classList.toggle('mobile-open'); });
+document.addEventListener('DOMContentLoaded', () => {
+    const sidebar = document.getElementById('sidebar');
+
+    document.getElementById('sidebarToggle')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.innerWidth <= 768) {
+            sidebar.classList.toggle('mobile-open');
+        } else {
+            sidebar.classList.toggle('collapsed');
+        }
+    });
+
+    document.getElementById('topbarToggle')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sidebar.classList.toggle('mobile-open');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (window.innerWidth <= 768 &&
+            !e.target.closest('#sidebar') &&
+            !e.target.closest('#topbarToggle')) {
+            sidebar.classList.remove('mobile-open');
+        }
+    });
+});
 
 // ── Toast ─────────────────────────────────────────────────────────────────
 function showToast(message, type = 'info') {
@@ -69,23 +91,23 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAllMo
     document.body.appendChild(div.firstElementChild);
 })();
 
-function showConfirm({ title='Confirmar', message='', confirmText='Confirmar', cancelText='Cancelar', type='danger', icon=null } = {}) {
+function showConfirm({ title = 'Confirmar', message = '', confirmText = 'Confirmar', cancelText = 'Cancelar', type = 'danger', icon = null } = {}) {
     return new Promise(resolve => {
-        const emojis = { danger:'🗑️', warning:'⚠️', info:'ℹ️', success:'✅' };
-        document.getElementById('_confirmIcon').textContent  = icon || emojis[type] || '⚠️';
+        const emojis = { danger: '🗑️', warning: '⚠️', info: 'ℹ️', success: '✅' };
+        document.getElementById('_confirmIcon').textContent = icon || emojis[type] || '⚠️';
         document.getElementById('_confirmTitle').textContent = title;
-        document.getElementById('_confirmMsg').innerHTML     = message;
+        document.getElementById('_confirmMsg').innerHTML = message;
 
-        const okBtn  = document.getElementById('_confirmOk');
+        const okBtn = document.getElementById('_confirmOk');
         const canBtn = document.getElementById('_confirmCancel');
-        okBtn.textContent  = confirmText;
+        okBtn.textContent = confirmText;
         canBtn.textContent = cancelText;
-        okBtn.className    = `btn btn-${type}`;
+        okBtn.className = `btn btn-${type}`;
         okBtn.style.minWidth = canBtn.style.minWidth = '120px';
-        okBtn.style.height   = canBtn.style.height   = '42px';
+        okBtn.style.height = canBtn.style.height = '42px';
 
         // Troca nós para limpar listeners
-        const newOk  = okBtn.cloneNode(true);
+        const newOk = okBtn.cloneNode(true);
         const newCan = canBtn.cloneNode(true);
         okBtn.replaceWith(newOk);
         canBtn.replaceWith(newCan);
@@ -96,7 +118,7 @@ function showConfirm({ title='Confirmar', message='', confirmText='Confirmar', c
             document.body.style.overflow = '';
             resolve(r);
         };
-        document.getElementById('_confirmOk').addEventListener('click',     () => close(true));
+        document.getElementById('_confirmOk').addEventListener('click', () => close(true));
         document.getElementById('_confirmCancel').addEventListener('click', () => close(false));
 
         document.getElementById('_confirmModal').classList.add('open');
@@ -113,11 +135,11 @@ async function apiCall(url, data = null, method = null) {
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         };
         if (data) opts.body = JSON.stringify(data);
-        const res  = await fetch(url, opts);
+        const res = await fetch(url, opts);
         const text = await res.text();
         try {
             return JSON.parse(text);
-        } catch(e) {
+        } catch (e) {
             console.error('Resposta não-JSON:', text.substring(0, 600));
             return { success: false, message: 'Erro no servidor. Veja o console (F12) para detalhes.' };
         }
@@ -150,7 +172,7 @@ async function deleteRecord(path, rowId, label) {
 
     // Garante BASE_PATH na URL
     const base = (typeof BASE_PATH !== 'undefined') ? BASE_PATH : '';
-    const url  = base + '/' + path.replace(/^\//, '');
+    const url = base + '/' + path.replace(/^\//, '');
 
     const res = await apiCall(url, null, 'DELETE');
     if (res.success) {

@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login — Mercearia do Tatu</title>
+    <title>Login — Nimvo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="login-box">
         <div class="login-logo">
             <div class="login-logo-icon"><i class="fas fa-wine-bottle"></i></div>
-            <div class="login-title">Mercearia do Tatu</div>
+            <div class="login-title">Nimvo</div>
             <div class="login-sub">Sistema de Vendas</div>
         </div>
         <div class="login-card">

@@ -1,5 +1,5 @@
 /* ============================================
-   Mercearia do Tatu — Main Stylesheet
+   Nimvo — Main Stylesheet
    ============================================ */
 :root {
     --primary: #1a56db;
@@ -95,25 +95,18 @@ body {
 }
 
 .logo-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
-    background: transparent;
-    /* remove o fundo azul */
 }
 
 .logo-icon img {
-    width: 100%;
-    /* ocupa todo o espaço do círculo */
-    height: 100%;
-    object-fit: cover;
-    /* preenche o círculo sem distorcer */
-    border-radius: 50%;
-    /* garante que a própria imagem seja redonda */
+    width: 120%;
+    height: 120%;
+    object-fit: contain;
 }
 
 .logo-name {
@@ -308,7 +301,7 @@ body {
 }
 
 .topbar-toggle {
-    display: none;
+    display: flex;
     background: none;
     border: none;
     color: var(--text-secondary);
