@@ -14,11 +14,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         if ($user && password_verify($pass, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['user']    = ['id'=>$user['id'],'name'=>$user['name'],'username'=>$user['username'],'role'=>$user['role']];
-            redirect('index.php');
-            exit;
-        } else {
+    $_SESSION['user_id'] = $user['id'];
+    $_SESSION['user']    = ['id'=>$user['id'],'name'=>$user['name'],'username'=>$user['username'],'role'=>$user['role']];
+    
+    if (!empty($user['must_change_password'])) {
+        redirect('pages/change_password.php');
+    } else {
+        redirect('index.php');
+    }
+    exit;
+} else {
             $error = 'Usuário ou senha incorretos.';
         }
     } else {
