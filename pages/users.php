@@ -51,6 +51,14 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
         exit;
     }
     exit;
+    if ($action === 'reset') {
+        $id = intval($_GET['id']);
+        $db->prepare("UPDATE users SET password=?, must_change_password=1 WHERE id=?")
+           ->execute([password_hash('admin', PASSWORD_DEFAULT), $id]);
+        echo json_encode(['success'=>true,'message'=>'Senha redefinida para "admin". O usuário deverá trocar no próximo acesso.']);
+        exit;
+    }
+    exit;
 }
 
 $users = $db->query("SELECT * FROM users ORDER BY name")->fetchAll();
@@ -92,6 +100,9 @@ include __DIR__.'/../includes/header.php';
                         <button class="btn btn-ghost btn-sm" title="Editar" onclick="openUserModal(<?= htmlspecialchars(json_encode($u)) ?>)">
                             <i class="fas fa-pen"></i>
                         </button>
+                        <button class="btn btn-ghost btn-sm" title="Redefinir senha" onclick="resetPassword(<?= $u['id'] ?>, '<?= htmlspecialchars($u['name']) ?>')">
+    <i class="fas fa-key" style="color:var(--warning)"></i>
+</button>
                         <?php if ($u['id'] != $_SESSION['user_id']): ?>
                         <button class="btn btn-ghost btn-sm" title="<?= $u['active']?'Desativar':'Ativar' ?>" onclick="toggleUser(<?= $u['id'] ?>)">
                             <i class="fas fa-<?= $u['active']?'ban':'circle-check' ?>" style="color:<?= $u['active']?'var(--danger)':'var(--success)' ?>"></i>
@@ -180,6 +191,14 @@ async function toggleUser(id) {
     if (res.success) { showToast(res.message, 'success'); setTimeout(() => location.reload(), 600); }
     else showToast(res.message, 'error');
 }
+
+async function resetPassword(id, nome) {
+    if (!confirm(`Redefinir senha de "${nome}" para "admin"? O usuário deverá trocar no próximo acesso.`)) return;
+    const res = await apiCall(`${BASE_PATH}/pages/users.php?action=reset&id=${id}`);
+    if (res.success) showToast(res.message, 'success');
+    else showToast(res.message, 'error');
+}
+
 </script>
 
 <?php include __DIR__.'/../includes/footer.php'; ?>
