@@ -79,16 +79,30 @@ function buildRelatorio($db, $caixaId, $caixa) {
     $abertura  = $caixa['aberto_em'];
     $fechamento = $caixa['fechado_em'] ?? date('Y-m-d H:i:s');
 
-    // Vendas no período do caixa por forma de pagamento
-    $vendas = $db->prepare("
-        SELECT payment_method, COUNT(*) as qtd, SUM(total) as total
-        FROM sales
-        WHERE status='finalizada'
-          AND created_at >= ? AND created_at <= ?
-        GROUP BY payment_method
-    ");
-    $vendas->execute([$abertura, $fechamento]);
-    $vendas = $vendas->fetchAll();
+    // Vendas no período do caixa por forma de pagamento (usa sale_payments se existir)
+    try {
+        $vendas = $db->prepare("
+            SELECT sp.payment_method, COUNT(DISTINCT s.id) as qtd, SUM(sp.valor) as total
+            FROM sales s
+            JOIN sale_payments sp ON sp.sale_id = s.id
+            WHERE s.status='finalizada'
+              AND s.created_at >= ? AND s.created_at <= ?
+            GROUP BY sp.payment_method
+        ");
+        $vendas->execute([$abertura, $fechamento]);
+        $vendas = $vendas->fetchAll();
+    } catch (\Exception $e) {
+        // Fallback para tabela sem sale_payments
+        $vendas = $db->prepare("
+            SELECT payment_method, COUNT(*) as qtd, SUM(total) as total
+            FROM sales
+            WHERE status='finalizada'
+              AND created_at >= ? AND created_at <= ?
+            GROUP BY payment_method
+        ");
+        $vendas->execute([$abertura, $fechamento]);
+        $vendas = $vendas->fetchAll();
+    }
 
     // Total cancelamentos
     $cancelados = $db->prepare("SELECT COUNT(*) as qtd, COALESCE(SUM(total),0) as total FROM sales WHERE status='cancelada' AND created_at >= ? AND created_at <= ?");

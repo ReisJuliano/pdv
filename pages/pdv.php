@@ -130,11 +130,35 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
         $items = $data['items'] ?? [];
         if (!$items) { echo json_encode(['success'=>false,'message'=>'Carrinho vazio']); exit; }
 
-        $payment    = $data['payment'] ?? 'dinheiro';
+        // Suporte a pagamento misto: $payments = [['method'=>'dinheiro','valor'=>3.99], ...]
+        $payments   = $data['payments'] ?? [];   // novo campo
+        $payment    = $data['payment']  ?? 'dinheiro'; // fallback legado
         $customerId = $data['customer_id'] ? intval($data['customer_id']) : null;
 
+        // Normaliza: se veio payments[], usa; senão usa payment simples
+        if (empty($payments)) {
+            $payments = [['method' => $payment, 'valor' => null]]; // valor null = total
+        }
+
+        // Garante tabela sale_payments
+        try {
+            $db->exec("CREATE TABLE IF NOT EXISTS `sale_payments` (
+                `id` int NOT NULL AUTO_INCREMENT,
+                `sale_id` int NOT NULL,
+                `payment_method` varchar(50) NOT NULL,
+                `valor` decimal(10,2) NOT NULL,
+                PRIMARY KEY (`id`),
+                KEY `sale_id` (`sale_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        } catch(Exception $e) {}
+
+        // Determina payment_method principal para a tabela sales
+        $methodsUsed = array_unique(array_column($payments, 'method'));
+        $paymentMain = count($methodsUsed) === 1 ? $methodsUsed[0] : 'misto';
+
         // ── Validação de fiado ───────────────────────────────────────────
-        if ($payment === 'fiado') {
+        $hasFiado = in_array('fiado', array_column($payments, 'method'));
+        if ($hasFiado) {
             if (!$customerId) {
                 echo json_encode(['success'=>false,'message'=>'Selecione um cliente para venda no fiado.','require_customer'=>true]);
                 exit;
@@ -145,6 +169,10 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
             foreach ($items as $it) $subtotalCalc += $it['price'] * $it['qty'];
             $totalCalc = $subtotalCalc - floatval($data['discount'] ?? 0);
 
+            // Valor do fiado especificamente
+            $valorFiado = 0;
+            foreach ($payments as $p) { if ($p['method'] === 'fiado') $valorFiado += floatval($p['valor'] ?? $totalCalc); }
+
             // Busca limite e saldo atual
             $stmt = $db->prepare("SELECT credit_limit FROM customers WHERE id=?");
             $stmt->execute([$customerId]);
@@ -152,7 +180,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
 
             if ($limite > 0) {
                 // Saldo devedor atual
-                $stmt2 = $db->prepare("SELECT COALESCE(SUM(total),0) FROM sales WHERE customer_id=? AND payment_method='fiado' AND status='finalizada'");
+                $stmt2 = $db->prepare("SELECT COALESCE(SUM(sp.valor),0) FROM sale_payments sp JOIN sales s ON sp.sale_id=s.id WHERE s.customer_id=? AND sp.payment_method='fiado' AND s.status='finalizada'");
                 $stmt2->execute([$customerId]);
                 $totalFiado = floatval($stmt2->fetchColumn());
 
@@ -163,7 +191,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
                 $totalPago = floatval($stmt3->fetchColumn());
 
                 $saldoAtual   = $totalFiado - $totalPago;
-                $novoSaldo    = $saldoAtual + $totalCalc;
+                $novoSaldo    = $saldoAtual + $valorFiado;
                 $disponivel   = $limite - $saldoAtual;
 
                 if ($novoSaldo > $limite && empty($data['bypass_limit'])) {
@@ -173,7 +201,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
                         'limite'          => $limite,
                         'saldo_atual'     => $saldoAtual,
                         'disponivel'      => max(0, $disponivel),
-                        'valor_venda'     => $totalCalc,
+                        'valor_venda'     => $valorFiado,
                     ]);
                     exit;
                 }
@@ -193,8 +221,19 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
             $profit = $total - $costTotal;
 
             $stmt = $db->prepare("INSERT INTO sales (sale_number,customer_id,user_id,subtotal,discount,total,cost_total,profit,payment_method,status,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-            $stmt->execute([$num, $customerId, $_SESSION['user_id'], $subtotal, $discount, $total, $costTotal, $profit, $payment, 'finalizada', $data['notes']??'']);
+            $stmt->execute([$num, $customerId, $_SESSION['user_id'], $subtotal, $discount, $total, $costTotal, $profit, $paymentMain, 'finalizada', $data['notes']??'']);
             $saleId = $db->lastInsertId();
+
+            // Grava parcelas de pagamento
+            $spStmt = $db->prepare("INSERT INTO sale_payments (sale_id, payment_method, valor) VALUES (?,?,?)");
+            $somaPayments = array_sum(array_column($payments, 'valor'));
+            foreach ($payments as $idx => $p) {
+                // Se só tem 1 pagamento ou valor não informado, usa o total da venda
+                $pValor = (count($payments) === 1 || $p['valor'] === null)
+                    ? $total
+                    : floatval($p['valor']);
+                $spStmt->execute([$saleId, $p['method'], $pValor]);
+            }
 
             foreach ($items as $it) {
                 $itTotal  = $it['price'] * $it['qty'];
@@ -355,25 +394,57 @@ include __DIR__.'/../includes/header.php';
         <!-- Payment method -->
         <div class="card" style="padding:14px">
             <div class="form-label"><i class="fas fa-credit-card" style="color:var(--primary)"></i> Forma de Pagamento</div>
-            <div class="pdv-pay-btns" style="margin-top:8px">
-                <button class="pdv-pay-btn" data-pay="dinheiro" onclick="selectPay(this)"><i class="fas fa-money-bill"></i><br>Dinheiro</button>
+
+            <!-- Botões rápidos de forma única -->
+            <div class="pdv-pay-btns" style="margin-top:8px" id="payBtns">
+                <button class="pdv-pay-btn selected" data-pay="dinheiro" onclick="selectPay(this)"><i class="fas fa-money-bill"></i><br>Dinheiro</button>
                 <button class="pdv-pay-btn" data-pay="pix" onclick="selectPay(this)"><i class="fas fa-qrcode"></i><br>Pix</button>
                 <button class="pdv-pay-btn" data-pay="cartao_debito" onclick="selectPay(this)"><i class="fas fa-credit-card"></i><br>Débito</button>
                 <button class="pdv-pay-btn" data-pay="cartao_credito" onclick="selectPay(this)"><i class="fas fa-credit-card"></i><br>Crédito</button>
-                <button class="pdv-pay-btn" data-pay="fiado" onclick="selectPay(this)" style="grid-column:span 2"><i class="fas fa-handshake"></i> Fiado</button>
+                <button class="pdv-pay-btn" data-pay="fiado" onclick="selectPay(this)"><i class="fas fa-handshake"></i><br>Fiado</button>
+                <button class="pdv-pay-btn" data-pay="misto" onclick="selectPay(this)" style="background:var(--primary-light);border-color:var(--primary);color:var(--primary)"><i class="fas fa-layer-group"></i><br>Misto</button>
             </div>
+
             <!-- Alerta de limite de fiado -->
-           
-         <div id="fiadoAlerta" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626"></div>
-       <!-- Troco -->
-<div id="trocoPanel" style="display:none;margin-top:12px">
-    <label class="form-label" style="color:rgba(255,255,255,0.7)"><i class="fas fa-money-bill-wave"></i> Valor Recebido (R$)</label>
-    <input type="number" id="recebidoInput" class="form-control" step="0.01" min="0" placeholder="0,00" oninput="calcTroco()" style="font-size:16px;font-weight:700">
-    <div id="trocoDisplay" style="display:none;margin-top:8px;padding:12px 14px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0">
-        <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase">Troco</div>
-        <div id="trocoValor" style="font-size:22px;font-weight:800;color:var(--success)">R$ 0,00</div>
-    </div>
-</div>
+            <div id="fiadoAlerta" style="display:none;margin-top:10px;padding:10px 12px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626"></div>
+
+            <!-- Troco (pagamento simples em dinheiro) -->
+            <div id="trocoPanel" style="display:none;margin-top:12px">
+                <label class="form-label" style="color:rgba(255,255,255,0.7)"><i class="fas fa-money-bill-wave"></i> Valor Recebido (R$)</label>
+                <input type="number" id="recebidoInput" class="form-control" step="0.01" min="0" placeholder="0,00" oninput="calcTroco()" style="font-size:16px;font-weight:700">
+                <div id="trocoDisplay" style="display:none;margin-top:8px;padding:12px 14px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0">
+                    <div style="font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase">Troco</div>
+                    <div id="trocoValor" style="font-size:22px;font-weight:800;color:var(--success)">R$ 0,00</div>
+                </div>
+            </div>
+
+            <!-- Painel de pagamento misto -->
+            <div id="mistoPanel" style="display:none;margin-top:12px">
+                <div id="mistoParcelasList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+
+                <!-- Saldo restante -->
+                <div id="mistoRestante" style="padding:8px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;font-size:13px;font-weight:700;color:#065f46;margin-bottom:10px;display:none">
+                    <i class="fas fa-check-circle"></i> <span id="mistoRestanteValor"></span>
+                </div>
+
+                <!-- Adicionar parcela -->
+                <div style="display:flex;gap:6px;align-items:center">
+                    <select id="mistoMetodo" class="form-control" style="flex:1;font-size:13px;height:38px">
+                        <option value="dinheiro">💵 Dinheiro</option>
+                        <option value="pix">🔷 Pix</option>
+                        <option value="cartao_debito">💳 Débito</option>
+                        <option value="cartao_credito">💳 Crédito</option>
+                        <option value="fiado">🤝 Fiado</option>
+                    </select>
+                    <input type="number" id="mistoValor" class="form-control" step="0.01" min="0.01" placeholder="R$ valor" style="width:110px;height:38px;font-size:13px" oninput="atualizarMistoRestante()">
+                    <button class="btn btn-primary btn-sm" onclick="adicionarParcela()" style="height:38px;padding:0 12px;white-space:nowrap">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+                    Clique <strong>+</strong> para adicionar cada forma. O restante é completado automaticamente.
+                </div>
+            </div>
         </div>
 
         <!-- Notes -->
@@ -506,6 +577,7 @@ let barcodeTimer = null;
 let _fiadoSaldo = null;
 let _cartSaveTimer = null;
 let pendingQty = 1;
+let mistoParcelas = []; // [{method, valor}]
 
 // ── Persistência do carrinho no banco ─────────────────────────────────
 function scheduleCartSave() {
@@ -775,18 +847,121 @@ function updateTotals() {
     document.getElementById('discountDisplay').textContent = '− ' + formatMoney(discount);
     document.getElementById('totalDisplay').textContent  = formatMoney(total);
     document.getElementById('itemCount').textContent     = parseFloat(count.toFixed(3));
+    if (selectedPay === 'misto') atualizarMistoRestante();
 }
 
 function selectPay(btn) {
     document.querySelectorAll('.pdv-pay-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     selectedPay = btn.dataset.pay;
-    // Mostra troco só para dinheiro
-    document.getElementById('trocoPanel').style.display = selectedPay === 'dinheiro' ? 'block' : 'none';
+
+    const isMisto   = selectedPay === 'misto';
+    const isDinheiro = selectedPay === 'dinheiro';
+
+    document.getElementById('trocoPanel').style.display  = isDinheiro  ? 'block' : 'none';
+    document.getElementById('mistoPanel').style.display  = isMisto     ? 'block' : 'none';
     document.getElementById('recebidoInput').value = '';
     document.getElementById('trocoDisplay').style.display = 'none';
+
+    if (isMisto) {
+        mistoParcelas = [];
+        renderMistoParcelas();
+        atualizarMistoRestante();
+    }
+
     checkFiadoAlerta();
     scheduleCartSave();
+}
+
+// ── Pagamento misto ───────────────────────────────────────────────────
+function getTotal() {
+    const subtotal = cart.reduce((s, i) => s + (i.price * i.qty), 0);
+    const discount = parseFloat(document.getElementById('discountInput').value) || 0;
+    return Math.max(0, subtotal - discount);
+}
+
+function mistoSomaParcelas() {
+    return mistoParcelas.reduce((s, p) => s + p.valor, 0);
+}
+
+function atualizarMistoRestante() {
+    const total   = getTotal();
+    const pago    = mistoSomaParcelas();
+    const restante = Math.round((total - pago) * 100) / 100;
+    const el      = document.getElementById('mistoRestante');
+    const elVal   = document.getElementById('mistoRestanteValor');
+
+    // Sugere o restante no campo de valor
+    const inputVal = document.getElementById('mistoValor');
+    if (restante > 0 && inputVal && !inputVal.value) {
+        inputVal.placeholder = 'R$ ' + restante.toFixed(2).replace('.', ',');
+    }
+
+    if (el) {
+        if (restante <= 0) {
+            el.style.background = '#f0fdf4';
+            el.style.borderColor = '#bbf7d0';
+            el.style.color = '#065f46';
+            elVal.textContent = restante < 0
+                ? `⚠️ Excedeu ${formatMoney(Math.abs(restante))}`
+                : '✅ Pagamento completo';
+            el.style.display = 'block';
+        } else if (mistoParcelas.length > 0) {
+            el.style.background = '#fff7ed';
+            el.style.borderColor = '#fed7aa';
+            el.style.color = '#9a3412';
+            elVal.textContent = `Faltam ${formatMoney(restante)}`;
+            el.style.display = 'block';
+        } else {
+            el.style.display = 'none';
+        }
+    }
+}
+
+function adicionarParcela() {
+    const metodo = document.getElementById('mistoMetodo').value;
+    let valor  = parseFloat(document.getElementById('mistoValor').value);
+
+    if (!valor || valor <= 0) {
+        // Se vazio, usa o restante
+        valor = Math.round((getTotal() - mistoSomaParcelas()) * 100) / 100;
+        if (valor <= 0) { showToast('Valor inválido ou pagamento já completo.', 'warning'); return; }
+    }
+
+    // Não deixa ultrapassar o total
+    const pago = mistoSomaParcelas();
+    const total = getTotal();
+    if (pago + valor > total + 0.001) {
+        showToast(`Soma ultrapassa o total (${formatMoney(total)}). Ajuste o valor.`, 'warning');
+        return;
+    }
+
+    mistoParcelas.push({ method: metodo, valor: Math.round(valor * 100) / 100 });
+    document.getElementById('mistoValor').value = '';
+    document.getElementById('mistoValor').placeholder = 'R$ valor';
+    renderMistoParcelas();
+    atualizarMistoRestante();
+}
+
+const PM_LABELS = {dinheiro:'💵 Dinheiro', pix:'🔷 Pix', cartao_debito:'💳 Débito', cartao_credito:'💳 Crédito', fiado:'🤝 Fiado'};
+
+function renderMistoParcelas() {
+    const el = document.getElementById('mistoParcelasList');
+    if (!mistoParcelas.length) { el.innerHTML = ''; return; }
+    el.innerHTML = mistoParcelas.map((p, i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px">
+            <span style="font-weight:600">${PM_LABELS[p.method] || p.method}</span>
+            <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-weight:800;color:var(--primary)">${formatMoney(p.valor)}</span>
+                <button onclick="removerParcela(${i})" class="btn btn-ghost btn-sm" style="color:var(--danger);padding:0 4px"><i class="fas fa-xmark"></i></button>
+            </div>
+        </div>`).join('');
+}
+
+function removerParcela(i) {
+    mistoParcelas.splice(i, 1);
+    renderMistoParcelas();
+    atualizarMistoRestante();
 }
 
 function calcTroco() {
@@ -877,24 +1052,46 @@ async function finalizeSale(bypass = false) {
 
     const customerId = document.getElementById('customerId').value || null;
 
-    if (selectedPay === 'fiado' && !customerId) {
+    // Valida fiado sem cliente
+    const needsCustomer = selectedPay === 'fiado' ||
+        (selectedPay === 'misto' && mistoParcelas.some(p => p.method === 'fiado'));
+    if (needsCustomer && !customerId) {
         openModal('selecionarClienteModal');
         return;
+    }
+
+    // Valida pagamento misto
+    if (selectedPay === 'misto') {
+        const total = getTotal();
+        const pago  = mistoSomaParcelas();
+        if (mistoParcelas.length < 2) { showToast('Adicione ao menos 2 formas de pagamento no modo misto.', 'warning'); return; }
+        const restante = Math.round((total - pago) * 100) / 100;
+        if (restante > 0.01) { showToast(`Faltam ${formatMoney(restante)} para completar o pagamento.`, 'warning'); return; }
     }
 
     const btn = document.getElementById('finalizeBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processando...';
 
-    const res = await apiCall(`${BASE_PATH}/pages/pdv.php?action=finalize`, {
+    // Monta payload
+    const payload = {
         items:        cart,
         customer_id:  customerId,
         discount:     parseFloat(document.getElementById('discountInput').value) || 0,
-        payment:      selectedPay,
         notes:        document.getElementById('saleNotes').value,
         bypass_limit: bypass,
         pedido_id:    PEDIDO_ID_URL || null,
-    });
+    };
+
+    if (selectedPay === 'misto') {
+        payload.payments = mistoParcelas;
+        payload.payment  = 'misto';
+    } else {
+        payload.payment  = selectedPay;
+        payload.payments = [{ method: selectedPay, valor: null }];
+    }
+
+    const res = await apiCall(`${BASE_PATH}/pages/pdv.php?action=finalize`, payload);
 
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-check-circle"></i> Finalizar Venda';
@@ -979,6 +1176,7 @@ async function cadastrarClienteRapido() {
 
 function newSale() {
     cart = [];
+    mistoParcelas = [];
     _fiadoSaldo = null;
     document.getElementById('discountInput').value = 0;
     document.getElementById('saleNotes').value     = '';
@@ -990,7 +1188,8 @@ function newSale() {
     selectedPay = 'dinheiro';
     pendingQty = 1;
     document.getElementById('qtyBadge').style.display = 'none';
-    document.getElementById('trocoPanel').style.display = selectedPay === 'dinheiro' ? 'block' : 'none';
+    document.getElementById('trocoPanel').style.display = 'block';
+    document.getElementById('mistoPanel').style.display = 'none';
     document.getElementById('recebidoInput').value = '';
     document.getElementById('trocoDisplay').style.display = 'none';
     renderCart();
