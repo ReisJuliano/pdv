@@ -155,9 +155,9 @@ function runSetup() {
         // Admin padrão (só se não existir nenhum usuário)
         $count = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
         if ($count == 0) {
-            $hash = password_hash('mercearia', PASSWORD_DEFAULT);
+            $hash = password_hash('admin', PASSWORD_DEFAULT);
             $pdo->prepare("INSERT INTO users (name,username,password,role) VALUES (?,?,?,?)")
-                ->execute(['Administrador','mercearia',$hash,'admin']);
+                ->execute(['Administrador','admin',$hash,'admin']);
         }
 
     } catch(PDOException $e) {

@@ -83,9 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <i class="fas fa-right-to-bracket"></i> Entrar
                 </button>
             </form>
-            <p style="font-size:12px;color:var(--text-muted);margin-top:20px;text-align:center">
-                Acesso padrão: usuário <code>mercearia</code> / senha <code>mercearia</code>
-            </p>
         </div>
     </div>
 </div>
