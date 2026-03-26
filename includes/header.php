@@ -21,7 +21,7 @@ $user = currentUser();
     <div class="sidebar-header">
         <div class="logo">
             <div class="logo-icon">
-                <img src="assets/img/logo.png" alt="Logo" style="width:40px;height:40px;">
+                <img src="/pdv/assets/img/logo.png" alt="Logo" style="width:40px;height:40px;">
             </div>
             <div class="logo-text">
                 <span class="logo-name"><?= APP_NAME ?></span>
