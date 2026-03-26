@@ -1,0 +1,11 @@
+Options -Indexes
+
+# PHP settings
+php_value session.gc_maxlifetime 86400
+php_value session.cookie_lifetime 86400
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options SAMEORIGIN
+</IfModule>
