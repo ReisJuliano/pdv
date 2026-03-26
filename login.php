@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link rel="stylesheet" href="<?= url('assets/css/main.css') ?>">
     <style>
-        html, body { display: block !important; min-height: 100vh; background: linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%) !important; }
+        html, body { display: block !important; min-height: 100vh;}
         .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
     </style>
 </head>
@@ -45,9 +45,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="login-page">
     <div class="login-box">
         <div class="login-logo">
-            <div class="login-logo-icon"><i class="fas fa-wine-bottle"></i></div>
+            <div class="logo-login-icon">
+                <img src="/pdv/assets/img/logo.png" alt="Logo" style="width:60px;height:60px;">
+            </div>
             <div class="login-title">Nimvo</div>
-            <div class="login-sub">Sistema de Vendas</div>
+            <div class="login-sub">Sistema Inteligente</div>
         </div>
         <div class="login-card">
             <h2 style="font-size:18px;font-weight:800;margin-bottom:6px;color:var(--text-primary)">Entrar no sistema</h2>
