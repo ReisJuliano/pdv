@@ -110,12 +110,12 @@ function buildRelatorio($db, $caixaId, $caixa) {
 
     // Baixas de fiado recebidas neste caixa
     $fiadoBaixas = $db->prepare("
-        SELECT fp.forma_pagamento, COUNT(*) as qtd, SUM(fp.valor) as total, c.name as cliente
-        FROM fiado_pagamentos fp
-        JOIN customers c ON c.id = fp.customer_id
-        WHERE fp.caixa_id = ?
-        GROUP BY fp.forma_pagamento
-    ");
+    SELECT fp.forma_pagamento, COUNT(*) as qtd, SUM(fp.valor) as total, ANY_VALUE(c.name) as cliente
+    FROM fiado_pagamentos fp
+    JOIN customers c ON c.id = fp.customer_id
+    WHERE fp.caixa_id = ?
+    GROUP BY fp.forma_pagamento
+");
     $fiadoBaixas->execute([$caixaId]);
     $fiadoBaixas = $fiadoBaixas->fetchAll();
     $totalFiadoBaixado = array_sum(array_column($fiadoBaixas, 'total'));
