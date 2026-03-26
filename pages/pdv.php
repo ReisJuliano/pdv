@@ -397,12 +397,12 @@ include __DIR__.'/../includes/header.php';
 
             <!-- Botões rápidos de forma única -->
             <div class="pdv-pay-btns" style="margin-top:8px" id="payBtns">
-                <button class="pdv-pay-btn selected" data-pay="dinheiro" onclick="selectPay(this)"><i class="fas fa-money-bill"></i><br>Dinheiro</button>
+                <button class="pdv-pay-btn" data-pay="dinheiro" onclick="selectPay(this)"><i class="fas fa-money-bill"></i><br>Dinheiro</button>
                 <button class="pdv-pay-btn" data-pay="pix" onclick="selectPay(this)"><i class="fas fa-qrcode"></i><br>Pix</button>
                 <button class="pdv-pay-btn" data-pay="cartao_debito" onclick="selectPay(this)"><i class="fas fa-credit-card"></i><br>Débito</button>
                 <button class="pdv-pay-btn" data-pay="cartao_credito" onclick="selectPay(this)"><i class="fas fa-credit-card"></i><br>Crédito</button>
                 <button class="pdv-pay-btn" data-pay="fiado" onclick="selectPay(this)"><i class="fas fa-handshake"></i><br>Fiado</button>
-                <button class="pdv-pay-btn" data-pay="misto" onclick="selectPay(this)" style="background:var(--primary-light);border-color:var(--primary);color:var(--primary)"><i class="fas fa-layer-group"></i><br>Misto</button>
+                <button class="pdv-pay-btn" data-pay="misto" onclick="selectPay(this)"><i class="fas fa-layer-group"></i><br>Misto</button>
             </div>
 
             <!-- Alerta de limite de fiado -->
