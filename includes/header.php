@@ -21,11 +21,11 @@ $user = currentUser();
     <div class="sidebar-header">
         <div class="logo">
             <div class="logo-icon">
-                <i class="fas fa-wine-bottle"></i>
+                <img src="assets/img/logo.png" alt="Logo" style="width:40px;height:40px;">
             </div>
             <div class="logo-text">
                 <span class="logo-name"><?= APP_NAME ?></span>
-                <span class="logo-sub">Distribuidora</span>
+                <span class="logo-sub">Sistema Inteligente</span>
             </div>
         </div>
         <button class="sidebar-toggle" id="sidebarToggle">
