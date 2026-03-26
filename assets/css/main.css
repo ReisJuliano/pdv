@@ -99,13 +99,19 @@ body {
     height: 50px;
     background: var(--primary);
     border-radius: 50%;
-    /* deixa redondo */
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
-    font-size: 18px;
-    flex-shrink: 0;
+    overflow: hidden;
+    /* importante */
+}
+
+.logo-icon img {
+    width: 70%;
+    /* reduz pra caber bem */
+    height: 70%;
+    object-fit: contain;
+    /* mantém proporção */
 }
 
 .logo-name {
